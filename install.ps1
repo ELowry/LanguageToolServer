@@ -1,3 +1,5 @@
+$ProgressPreference = 'SilentlyContinue'
+
 # --- SETTINGS ---
 $repoRoot = "https://raw.githubusercontent.com/ELowry/LanguageToolServer/main"
 $targetDir = "$env:LOCALAPPDATA\LanguageToolServer"
@@ -73,5 +75,10 @@ Register-ScheduledTask -TaskName $taskName -Trigger $trigger -Action $action -Pr
 
 # --- 5. LAUNCH ---
 Write-Host "Installation Complete! Starting server..." -ForegroundColor Green
-Start-Process "powershell.exe" -ArgumentList "-NoExit -ExecutionPolicy Bypass -File `"$targetDir\start-languagetoolserver.ps1`""
+	if (Get-Command "wt.exe" -ErrorAction SilentlyContinue) {
+		Start-Process "wt.exe" -ArgumentList "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$targetDir\start-languagetoolserver.ps1`"" -Verb RunAs
+	} 
+	else {
+		Start-Process "powershell.exe" -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$targetDir\start-languagetoolserver.ps1`""
+	}
 exit

@@ -1,3 +1,5 @@
+$ProgressPreference = 'SilentlyContinue'
+
 # --- CONFIGURATION ---
 $rootDir = $PSScriptRoot
 $serverDir = "$rootDir\server"
