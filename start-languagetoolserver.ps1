@@ -69,40 +69,49 @@ if (-not (Test-Path $serverProps)) {
 	Write-Output "Created empty server.properties in root."
 }
 
-# --- 4. UPDATE LOGIC ---
+# --- 4. SMART UPDATE LOGIC ---
 try {
-	Write-Output "Checking for updates..."
+	Write-Output "Checking if a new LanguageTool version is available..."
 
-	# Download
-	Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -ErrorAction Stop
+	# 1. Get headers from the server to see when the file was last updated
+	$headers = Invoke-WebRequest -Uri $zipUrl -Method Head -UseBasicParsing -ErrorAction Stop
+	$remoteDate = [datetime]$headers.Headers['Last-Modified']
 
-	# Clean & Create Temp
-	if (Test-Path $extractPath) {
-		Remove-Item -Recurse -Force $extractPath
-	}
-	New-Item -ItemType Directory -Force -Path $extractPath | Out-Null
+	# 2. Get the date of your current local installation
+	$localDate = (Get-Item $serverDir).LastWriteTime
 
-	# Extract
-	Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+	# 3. Only download if the remote file is newer than the local folder
+	if ($remoteDate -gt $localDate -or -not (Test-Path $serverDir)) {
+		Write-Output "New version detected (Remote: $remoteDate, Local: $localDate). Downloading..."
 
-	# Find the dynamic subfolder
-	$subFolder = Get-ChildItem -Path $extractPath -Directory | Select-Object -First 1
+		Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -ErrorAction Stop
 
-	if ($subFolder) {
-		if (Test-Path $serverDir) {
-			Remove-Item -Recurse -Force $serverDir
+		if (Test-Path $extractPath) {
+			Remove-Item -Recurse -Force $extractPath
+		}
+		New-Item -ItemType Directory -Force -Path $extractPath | Out-Null
+		Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+
+		$subFolder = Get-ChildItem -Path $extractPath -Directory | Select-Object -First 1
+		if ($subFolder) {
+			if (Test-Path $serverDir) {
+				Remove-Item -Recurse -Force $serverDir
+			}
+			Move-Item -Path $subFolder.FullName -Destination $serverDir -Force
+			# Force the local directory date to match the server date for the next check
+			(Get-Item $serverDir).LastWriteTime = $remoteDate
 		}
 
-		Move-Item -Path $subFolder.FullName -Destination $serverDir -Force
+		Remove-Item -Recurse -Force $extractPath
+		Remove-Item -Force $zipPath
+		Write-Output "Update successful."
 	}
-
-	# Cleanup
-	Remove-Item -Recurse -Force $extractPath
-	Remove-Item -Force $zipPath
-	Write-Output "Update successful."
+ else {
+		Write-Output "You are already on the latest version ($localDate). Skipping download."
+	}
 }
 catch {
-	Write-Warning "Update failed (Network down?). Proceeding with existing version."
+	Write-Warning "Update check failed or server unreachable. Proceeding with existing version."
 }
 
 # --- 5. STARTUP LOGIC ---
@@ -112,16 +121,38 @@ if (-not (Test-Path $serverDir)) {
 }
 
 Set-Location -Path $serverDir
-
 $jarFile = Get-ChildItem -Path $serverDir -Filter "languagetool-server.jar" | Select-Object -First 1
 
 if ($jarFile) {
-	# Point to the jar in \server\ but config in \root\
-	$args = "-cp `"$($jarFile.Name)`" org.languagetool.server.HTTPServer --config `"$serverProps`" --port $port --allow-origin `"*`""
+	Write-Host "Starting LanguageTool Server..." -ForegroundColor Cyan
 
-	# Start silently
-	Start-Process -FilePath "javaw" -ArgumentList $args -WindowStyle Hidden
+	# Point to the jar in \server\ but config in \root\
+	$startArgs = "-cp `"$($jarFile.Name)`" org.languagetool.server.HTTPServer --config `"$serverProps`" --port $port --allow-origin `"*`""
+
+	# Start the process silently
+	$process = Start-Process -FilePath "javaw" -ArgumentList $startArgs -WindowStyle Hidden -PassThru
+
+	# Wait 5 seconds for Java to initialize
+	Write-Host "Waiting for server to initialize..." -NoNewline
+	Start-Sleep -Seconds 5
+	Write-Host " Done."
+
+	# Check if the process is still running
+	if ($process.HasExited) {
+		Write-Error "Server process crashed immediately. Check server.properties or Java version."
+		exit 1
+	}
+
+	# Check if port 8081 is open
+	try {
+		$tcpConnection = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction Stop
+		Write-Host "SUCCESS: Server is up and listening on port $port (PID: $($tcpConnection.OwningProcess))" -ForegroundColor Green
+	}
+	catch {
+		Write-Warning "Server process is running (PID: $($process.Id)), but port $port is not yet responding. It might just be slow to load."
+	}
 }
 else {
 	Write-Error "Could not find languagetool-server.jar in $serverDir"
 }
+exit 0
