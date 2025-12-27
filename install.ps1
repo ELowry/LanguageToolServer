@@ -7,9 +7,16 @@ $taskName = "LanguageTool Local Server"
 # If not Admin, download this script to Temp and run it as Admin
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
 	Write-Host "Requesting Admin privileges..." -ForegroundColor Yellow
+
 	$selfPath = "$env:TEMP\lt_install.ps1"
 	Invoke-WebRequest -Uri "$repoRoot/install.ps1" -OutFile $selfPath -UseBasicParsing
-	Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$selfPath`""
+
+	if (Get-Command "wt.exe" -ErrorAction SilentlyContinue) {
+		Start-Process "wt.exe" -Verb RunAs -ArgumentList "powershell -NoProfile -ExecutionPolicy Bypass -File `"$selfPath`""
+	} 
+	else {
+		Start-Process "powershell.exe" -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$selfPath`""
+	}
 	exit
 }
 
@@ -66,3 +73,4 @@ Register-ScheduledTask -TaskName $taskName -Trigger $trigger -Action $action -Pr
 # --- 5. LAUNCH ---
 Write-Host "Installation Complete! Starting server..." -ForegroundColor Green
 Start-Process "powershell.exe" -ArgumentList "-NoExit -ExecutionPolicy Bypass -File `"$targetDir\start-languagetoolserver.ps1`""
+exit
