@@ -4,15 +4,16 @@ $targetDir = "$env:LOCALAPPDATA\LanguageToolServer"
 $taskName = "LanguageTool Local Server"
 
 # --- 1. SELF-ELEVATION ---
+
 # If not Admin, download this script to Temp and run it as Admin
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
 	Write-Host "Requesting Admin privileges..." -ForegroundColor Yellow
-
+    
 	$selfPath = "$env:TEMP\lt_install.ps1"
 	Invoke-WebRequest -Uri "$repoRoot/install.ps1" -OutFile $selfPath -UseBasicParsing
 
 	if (Get-Command "wt.exe" -ErrorAction SilentlyContinue) {
-		Start-Process "wt.exe" -Verb RunAs -ArgumentList "powershell -NoProfile -ExecutionPolicy Bypass -File `"$selfPath`""
+		Start-Process "wt.exe" -ArgumentList "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$selfPath`"" -Verb RunAs
 	} 
 	else {
 		Start-Process "powershell.exe" -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$selfPath`""
@@ -30,10 +31,10 @@ if (-not (Test-Path $targetDir)) {
 try {
 	Write-Host "Downloading scripts from GitHub..."
 	
-	# 1. Download the Main Logic Script (Updated Name)
+	# Download the Main Logic Script
 	Invoke-WebRequest -Uri "$repoRoot/start-languagetoolserver.ps1" -OutFile "$targetDir\start-languagetoolserver.ps1" -UseBasicParsing -ErrorAction Stop
 
-	# 2. Download Config (Fail Silently if missing)
+	# Download Config
 	if (-not (Test-Path "$targetDir\server.properties")) {
 		try {
 			Invoke-WebRequest -Uri "$repoRoot/server.properties" -OutFile "$targetDir\server.properties" -UseBasicParsing -ErrorAction Stop
