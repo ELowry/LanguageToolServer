@@ -14,10 +14,11 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 	$selfPath = "$env:TEMP\lt_install.ps1"
 	Invoke-WebRequest -Uri "$repoRoot/install.ps1" -OutFile $selfPath -UseBasicParsing
 
-	if (Get-Command "wt.exe" -ErrorAction SilentlyContinue) {
-		Start-Process "wt.exe" -ArgumentList "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$selfPath`"" -Verb RunAs
-	} 
-	else {
+	# Try to force Windows Terminal (wt). If it fails, catch the error and use legacy PowerShell.
+	try {
+		Start-Process "wt" -ArgumentList "-- powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$selfPath`"" -Verb RunAs -ErrorAction Stop
+	}
+	catch {
 		Start-Process "powershell.exe" -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$selfPath`""
 	}
 	exit
@@ -75,10 +76,10 @@ Register-ScheduledTask -TaskName $taskName -Trigger $trigger -Action $action -Pr
 
 # --- 5. LAUNCH ---
 Write-Host "Installation Complete! Starting server..." -ForegroundColor Green
-	if (Get-Command "wt.exe" -ErrorAction SilentlyContinue) {
-		Start-Process "wt.exe" -ArgumentList "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$targetDir\start-languagetoolserver.ps1`"" -Verb RunAs
-	} 
-	else {
-		Start-Process "powershell.exe" -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$targetDir\start-languagetoolserver.ps1`""
-	}
+try {
+	Start-Process "wt" -ArgumentList "-- powershell.exe -NoExit -ExecutionPolicy Bypass -File `"$targetDir\start-languagetoolserver.ps1`"" -ErrorAction Stop
+}
+catch {
+	Start-Process "powershell.exe" -ArgumentList "-NoExit -ExecutionPolicy Bypass -File `"$targetDir\start-languagetoolserver.ps1`""
+}
 exit
