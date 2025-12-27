@@ -1,0 +1,1 @@
+https://internal1.languagetool.org/snapshots/LanguageTool-latest-snapshot.zip
