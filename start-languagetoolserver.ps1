@@ -39,16 +39,29 @@ catch {
 	Write-Warning "Could not query running processes. Skipping stop step."
 }
 
-# JAVA CHECK & INSTALL (WINGET)
-try {
-	Get-Command javaw -ErrorAction Stop | Out-Null
+# SMART JAVA CHECK & INSTALL
+Write-Output "Scanning system for the newest Java version..."
+
+# Find ALL javaw.exe instances in system PATH
+$allJavas = Get-Command javaw -All -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+
+if ($allJavas) {
+	# Sort by file version number and pick the highest one
+	$bestJavaw = $allJavas | Sort-Object {
+		$verString = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($_).ProductVersion
+		# Clean the string to ensure it casts to a [version] object correctly
+		$cleanVer = $verString -replace '[^\d\.]', ''
+		if ([version]::TryParse($cleanVer, [ref]$null)) { [version]$cleanVer } else { [version]'0.0' }
+	} -Descending | Select-Object -First 1
+
+	Write-Output "Selected Java Executable: $bestJavaw"
 }
-catch {
+else {
 	Write-Warning "Java not found. Attempting to install Eclipse Adoptium (JRE 21) via Winget..."
 	try {
 		winget install -e --id EclipseAdoptium.Temurin.25.JRE --accept-package-agreements --accept-source-agreements --silent
 		$env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-		Get-Command javaw -ErrorAction Stop | Out-Null
+		$bestJavaw = "javaw" # Fallback to standard command after install
 		Write-Output "Java installed successfully."
 	}
  catch {
