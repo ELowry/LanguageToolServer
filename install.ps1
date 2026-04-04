@@ -1,11 +1,11 @@
 $ProgressPreference = 'SilentlyContinue'
 
-# --- SETTINGS ---
+# CONFIGURATION
 $repoRoot = "https://raw.githubusercontent.com/ELowry/LanguageToolServer/main"
 $targetDir = "$env:LOCALAPPDATA\LanguageToolServer"
 $taskName = "LanguageTool Local Server"
 
-# --- 1. SELF-ELEVATION ---
+# SELF-ELEVATION
 
 # If not Admin, download this script to Temp and run it as Admin
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -24,13 +24,13 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 	exit
 }
 
-# --- 2. SETUP FOLDER ---
+# SETUP FOLDER
 Write-Host "Installing LanguageTool Server to: $targetDir" -ForegroundColor Cyan
 if (-not (Test-Path $targetDir)) {
 	New-Item -Path $targetDir -ItemType Directory -Force | Out-Null
 }
 
-# --- 3. DOWNLOAD SCRIPTS ---
+# DOWNLOAD SCRIPTS
 try {
 	Write-Host "Downloading scripts from GitHub..."
 	
@@ -53,7 +53,7 @@ catch {
 	exit
 }
 
-# --- 4. CREATE INVISIBLE LAUNCHER & TASK ---
+# CREATE INVISIBLE LAUNCHER & TASK
 Write-Host "Creating invisible launcher..."
 $vbsPath = "$targetDir\launch.vbs"
 $scriptPath = "$targetDir\start-languagetoolserver.ps1"
@@ -74,12 +74,8 @@ $settings = New-ScheduledTaskSettingsSet -Hidden -AllowStartIfOnBatteries -DontS
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 Register-ScheduledTask -TaskName $taskName -Trigger $trigger -Action $action -Principal $principal -Settings $settings | Out-Null
 
-# --- 5. LAUNCH ---
-Write-Host "Installation Complete! Starting server..." -ForegroundColor Green
-try {
-	Start-Process "wt" -ArgumentList "-- powershell.exe -NoExit -ExecutionPolicy Bypass -File `"$targetDir\start-languagetoolserver.ps1`"" -ErrorAction Stop
-}
-catch {
-	Start-Process "powershell.exe" -ArgumentList "-NoExit -ExecutionPolicy Bypass -File `"$targetDir\start-languagetoolserver.ps1`""
-}
+# LAUNCH
+Write-Host "Installation Complete! Starting server in the background..." -ForegroundColor Green
+Start-Process "wscript.exe" -ArgumentList "`"$vbsPath`""
+Start-Sleep -Seconds 3
 exit
